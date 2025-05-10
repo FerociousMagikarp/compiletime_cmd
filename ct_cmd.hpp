@@ -25,7 +25,6 @@
 #pragma once
 
 #include <array>
-#include <bit>
 #include <algorithm>
 #include <concepts>
 #include <type_traits>
@@ -200,6 +199,18 @@ consteval bool is_ignore_name() noexcept
 		return false;
 }
 
+template <typename... P>
+consteval std::size_t get_ignore_name_id() noexcept
+{
+	auto res = []<std::size_t... Idx>(std::index_sequence<Idx...>)->std::size_t
+	{
+		return { ((is_ignore_name<P>() ? Idx : 0) + ...) };
+	}(std::make_index_sequence<sizeof...(P)>());
+	if (res == 0)
+		return static_cast<std::size_t>(-1);
+	return res;
+}
+
 template <typename T>
 consteval bool has_default_value() noexcept
 {
@@ -331,7 +342,7 @@ class parser<detail::_params<P...>, detail::_values<V...>>
 
 private:
 	constexpr static std::size_t PARAM_COUNT = sizeof...(P);
-	constexpr static std::size_t IGNORE_NAME_ID = 0;
+	constexpr static std::size_t IGNORE_NAME_ID = detail::get_ignore_name_id<P...>();
 	constexpr static auto PARAM_NAMES = detail::get_param_names<P...>();
 	constexpr static auto SHORT_NAMES = detail::get_param_short_names<P...>();
 	constexpr static auto NO_VALUE_FLAGS = detail::get_no_value_flags<V...>();
@@ -546,7 +557,7 @@ public:
 			auto func = [&must_vec]<std::size_t I>(std::integral_constant<std::size_t, I>) -> void
 			{
 				using p_type = detail::find_T_at_N_t<I, P...>;
-				if constexpr (detail::is_must<p_type>())
+				if constexpr (detail::is_must<p_type>() && !detail::has_default_value<p_type>())
 				{
 					constexpr std::string_view value_type_str = detail::get_value_type_name<p_type>();
 					if constexpr (detail::is_ignore_name<p_type>())
